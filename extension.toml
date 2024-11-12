@@ -1,0 +1,15 @@
+id = "odin"
+name = "Odin"
+version = "0.1.0"
+schema_version = 1
+authors = ["Mo Nematzadeh <mohammad.h.nematzadeh@gmail.com>"]
+description = "Odin support."
+repository = "https://github.com/rxptr/zed-odin"
+
+[language_servers.ols]
+name = "ols"
+language = "Odin"
+
+[grammars.odin]
+repository = "https://github.com/tree-sitter-grammars/tree-sitter-odin"
+commit = "e4897cd9b73e35d80bdb89ff4b0c62606435837f"
