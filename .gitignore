@@ -1,4 +1,5 @@
 *.wasm
 *.lock
 /target
+/grammars
 *.DS_Store
