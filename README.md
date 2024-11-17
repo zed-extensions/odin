@@ -1,5 +1,6 @@
-# zed-odin
-[Odin](https://odin-lang.org/) Language support for [Zed](https://zed.dev/)
+# 🔨 Odin Language Support for Zed
 
-- Syntax Highlighting through [tree-sitter](https://tree-sitter.github.io/) using [Odin implementation](https://github.com/tree-sitter-grammars/tree-sitter-odin).
-- Language Supprt with [Odin Language Server](https://github.com/DanielGavin/ols).
+This project provides Odin programming language support, featuring syntax highlighting and code navigation via Tree-sitter, along with Language Server capabilities like autocompletion, diagnostics, and more.
+
+- Tree Sitter: [tree-sitter-odin](https://github.com/tree-sitter-grammars/tree-sitter-odin)
+- Language Server: [@DanielGavin/ols](https://github.com/DanielGavin/ols)
