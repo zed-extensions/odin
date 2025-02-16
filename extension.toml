@@ -1,6 +1,6 @@
 id = "odin"
 name = "Odin"
-version = "0.2.0"
+version = "0.2.1"
 schema_version = 1
 authors = ["Mo Nematzadeh <mohammad.h.nematzadeh@gmail.com>"]
 description = "Odin support."
@@ -12,4 +12,4 @@ language = "Odin"
 
 [grammars.odin]
 repository = "https://github.com/tree-sitter-grammars/tree-sitter-odin"
-commit = "e4897cd9b73e35d80bdb89ff4b0c62606435837f"
+commit = "e8adc739b78409a99f8c31313f0bb54cc538cf73"
