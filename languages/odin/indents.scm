@@ -1,33 +1,17 @@
-[
-  (block)
-  (enum_declaration)
-  (union_declaration)
-  (struct_declaration)
-  (struct)
-  (parameters)
-  (tuple_type)
-  (call_expression)
-  (switch_case)
-] @indent.begin
+(switch_case) @indent
 
-; hello(
-((identifier) . (ERROR "(" @indent.begin))
+; no `(_ "{" @start "}" @end) @indent` because the convention is to not indent
+; the `case` statements in a switch
+(block "{" @start "}" @end) @indent
+(bit_field_declaration "{" @start "}" @end) @indent
+(enum_declaration "{" @start "}" @end) @indent
+(struct_declaration "{" @start "}" @end) @indent
+(union_declaration "{" @start "}" @end) @indent
+(overloaded_procedure_declaration "{" @start "}" @end) @indent
+(struct "{" @start "}" @end) @indent
+(map "{" @start "}" @end) @indent
+(union_type "{" @start "}" @end) @indent
+(matrix "{" @start "}" @end) @indent
 
-[
-  ")"
-  "]"
-] @indent.branch @indent.end
-
-; Have to do all closing brackets separately because the one for switch statements shouldn't end.
-(block "}" @indent.branch @indent.end)
-(enum_declaration "}" @indent.branch @indent.end)
-(union_declaration "}" @indent.branch @indent.end)
-(struct_declaration "}" @indent.branch @indent.end)
-(struct "}" @indent.branch @indent.end)
-
-[
-  (comment)
-  (block_comment)
-  (string)
-  (ERROR)
-] @indent.auto
+(_ "(" @start ")" @end) @indent
+(_ "[" @start "]" @end) @indent
