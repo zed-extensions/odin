@@ -1,0 +1,14 @@
+[
+  {
+    "label": "odin run file",
+    "command": "odin",
+    "args": ["run", "$ZED_FILE", "-file"],
+    "tags": ["odin-main"]
+  },
+  {
+    "label": "oding run package",
+    "command": "odin",
+    "args": ["run", "$ZED_DIRNAME"],
+    "tags": ["odin-main"]
+  }
+]
