@@ -6,7 +6,7 @@
     "tags": ["odin-main"]
   },
   {
-    "label": "oding run package",
+    "label": "odin run package",
     "command": "odin",
     "args": ["run", "$ZED_DIRNAME"],
     "tags": ["odin-main"]
