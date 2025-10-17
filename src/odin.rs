@@ -129,6 +129,17 @@ impl zed::Extension for OdinExtension {
         })
     }
 
+    fn language_server_initialization_options(
+        &mut self,
+        language_server_id: &LanguageServerId,
+        worktree: &Worktree,
+    ) -> Result<Option<serde_json::Value>> {
+        let settings = LspSettings::for_worktree(language_server_id.as_ref(), worktree)
+            .ok()
+            .and_then(|lsp_settings| lsp_settings.initialization_options.clone());
+        Ok(settings)
+    }
+
     fn language_server_workspace_configuration(
         &mut self,
         language_server_id: &LanguageServerId,
