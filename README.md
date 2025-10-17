@@ -5,6 +5,8 @@ This project provides Odin programming language support, featuring syntax highli
 - Tree Sitter: [tree-sitter-odin](https://github.com/tree-sitter-grammars/tree-sitter-odin)
 - Language Server: [@DanielGavin/ols](https://github.com/DanielGavin/ols)
 
+---
+
 ## Language Server
 
 This extension automatically updates to the latest OLS (Odin Language Server) nightly build on each startup.
@@ -25,6 +27,8 @@ If you want to use a specific OLS version or a locally built binary, you can ove
   }
 }
 ```
+
+---
 
 ## Configuration
 
@@ -111,6 +115,8 @@ echo $ODIN_ROOT
 ```
 
 For more configuration options, see the [OLS documentation](https://github.com/DanielGavin/ols#configuration).
+
+---
 
 ## Snippets
 
