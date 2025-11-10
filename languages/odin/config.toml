@@ -21,3 +21,4 @@ brackets = [
         "string",
     ] },
 ]
+debuggers = ["CodeLLDB"]

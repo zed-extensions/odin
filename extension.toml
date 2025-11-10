@@ -13,3 +13,5 @@ language = "Odin"
 [grammars.odin]
 repository = "https://github.com/tree-sitter-grammars/tree-sitter-odin"
 commit = "e8adc739b78409a99f8c31313f0bb54cc538cf73"
+
+[debug_locators.odin-main]

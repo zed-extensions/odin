@@ -1,6 +1,9 @@
 use std::fs;
-use zed::{LanguageServerId, Worktree};
-use zed_extension_api::{self as zed, serde_json, settings::LspSettings, Result};
+use zed::{
+    BuildTaskDefinition, BuildTaskDefinitionTemplatePayload, BuildTaskTemplate, DebugRequest,
+    DebugScenario, LanguageServerId, LaunchRequest, TaskTemplate, Worktree,
+};
+use zed_extension_api::{self as zed, serde_json, settings::LspSettings, DebugConfig, Result};
 
 struct OdinExtension {
     cached_binary_path: Option<String>,
@@ -150,6 +153,141 @@ impl zed::Extension for OdinExtension {
             .and_then(|lsp_settings| lsp_settings.settings.clone())
             .unwrap_or_default();
         Ok(Some(settings))
+    }
+
+    fn dap_config_to_scenario(&mut self, config: DebugConfig) -> Result<DebugScenario, String> {
+        let mut config_map = serde_json::Map::new();
+        match &config.request {
+            DebugRequest::Launch(launch) => {
+                config_map.insert("request".to_string(), serde_json::json!("launch"));
+                config_map.insert("program".to_string(), serde_json::json!(&launch.program));
+
+                if let Some(ref cwd) = launch.cwd {
+                    config_map.insert("cwd".to_string(), serde_json::json!(cwd));
+                }
+
+                if !launch.args.is_empty() {
+                    config_map.insert("args".to_string(), serde_json::json!(&launch.args));
+                }
+
+                if !launch.envs.is_empty() {
+                    config_map.insert("env".to_string(), serde_json::json!(&launch.envs));
+                }
+            }
+            DebugRequest::Attach(attach) => {
+                config_map.insert("request".to_string(), serde_json::json!("attach"));
+                config_map.insert("pid".to_string(), serde_json::json!(&attach.process_id));
+            }
+        }
+
+        if let Some(stop_on_entry) = config.stop_on_entry {
+            config_map.insert("stopOnEntry".to_string(), serde_json::json!(stop_on_entry));
+        }
+
+        let config_value = serde_json::Value::Object(config_map);
+        let config_json = serde_json::to_string(&config_value)
+            .map_err(|e| format!("Failed to serialize debug config: {}", e))?;
+
+        Ok(DebugScenario {
+            adapter: config.adapter,
+            label: config.label,
+            config: config_json,
+            tcp_connection: None,
+            build: None,
+        })
+    }
+
+    fn dap_locator_create_scenario(
+        &mut self,
+        locator_name: String,
+        build_task: TaskTemplate,
+        resolved_label: String,
+        debug_adapter_name: String,
+    ) -> Option<DebugScenario> {
+        // Only handle Odin run tasks
+        if build_task.command != "odin" || build_task.args.is_empty() || build_task.args[0] != "run"
+        {
+            return None;
+        }
+
+        // Convert "odin run" to "odin build" with -debug flag
+        let mut build_args = build_task.args.clone();
+        build_args[0] = "build".to_string();
+
+        // Add -out flag to control output name
+        build_args.push("-out:debug_build".into());
+
+        // Add -debug flag if not present
+        if !build_args.contains(&"-debug".into()) {
+            build_args.push("-debug".into());
+        }
+
+        // Create the build task template
+        let build_template = BuildTaskTemplate {
+            label: "odin debug build".into(),
+            command: build_task.command.clone(),
+            args: build_args,
+            env: build_task.env.clone(),
+            cwd: build_task.cwd.clone(),
+        };
+
+        // Config is Null - the actual launch config comes from run_dap_locator
+        let config = serde_json::to_string(&serde_json::Value::Null).ok()?;
+
+        // Remove 'run: ' from the task label, since 'debug: ' will be prepended by default
+        let label = resolved_label
+            .clone()
+            .strip_prefix("run: ")
+            .unwrap_or(&resolved_label)
+            .to_string();
+
+        Some(DebugScenario {
+            adapter: debug_adapter_name,
+            label: label,
+            config: config,
+            tcp_connection: None,
+            build: Some(BuildTaskDefinition::Template(
+                BuildTaskDefinitionTemplatePayload {
+                    template: build_template,
+                    locator_name: Some(locator_name.into()),
+                },
+            )),
+        })
+    }
+
+    fn run_dap_locator(
+        &mut self,
+        _locator_name: String,
+        build_task: TaskTemplate,
+    ) -> Result<DebugRequest, String> {
+        // Only handle Odin build tasks
+        if build_task.command != "odin"
+            || build_task.args.is_empty()
+            || build_task.args[0] != "build"
+        {
+            return Err("Not an Odin build task".to_string());
+        }
+
+        // Extract the binary name from the -out: flag
+        let output_name = build_task
+            .args
+            .iter()
+            .find_map(|arg| arg.strip_prefix("-out:"))
+            .ok_or_else(|| "Failed to extract output binary name from build task".to_string())?
+            .to_string();
+
+        // Construct absolute path to the binary, since lldb-dap requires absolute paths
+        let cwd = build_task.cwd.as_ref().ok_or("No cwd in build task")?;
+        let program = format!("{}/{}", cwd, output_name);
+
+        let request = LaunchRequest {
+            program: program,
+            cwd: build_task.cwd,
+            args: vec![],
+            envs: build_task.env.into_iter().collect(),
+        };
+
+        Ok(DebugRequest::Launch(request))
     }
 }
 

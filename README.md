@@ -1,9 +1,10 @@
 # 🔨 Odin Language Support for Zed
 
-This project provides Odin programming language support, featuring syntax highlighting and code navigation via Tree-sitter, along with Language Server capabilities like autocompletion, diagnostics, and more.
+This project provides Odin programming language support, featuring syntax highlighting and code navigation via Tree-sitter, Language Server capabilities like autocompletion and diagnostics, and full debugging support.
 
 - Tree Sitter: [tree-sitter-odin](https://github.com/tree-sitter-grammars/tree-sitter-odin)
 - Language Server: [@DanielGavin/ols](https://github.com/DanielGavin/ols)
+- Debug Adapters: LLDB (Built-in)
 
 ---
 
@@ -150,3 +151,13 @@ Example snippet:
 ```
 
 For detailed information about creating and using snippets, see [Zed's snippet documentation](https://zed.dev/docs/snippets).
+
+---
+
+## Debugging
+
+This extension supports debugging Odin applications using **LLDB**.
+
+**Note:** You must have LLDB already installed on your system to use debugging features. The extension does not install debuggers automatically.
+
+---
