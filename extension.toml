@@ -1,10 +1,10 @@
 id = "odin"
 name = "Odin"
-version = "0.2.4"
+version = "0.3.0"
 schema_version = 1
 authors = ["Mo Nematzadeh <mohammad.h.nematzadeh@gmail.com>"]
 description = "Odin support."
-repository = "https://github.com/rxptr/zed-odin"
+repository = "https://github.com/zed-extensions/odin"
 
 [language_servers.ols]
 name = "ols"
