@@ -158,6 +158,4 @@ For detailed information about creating and using snippets, see [Zed's snippet d
 
 This extension supports debugging Odin applications using **LLDB**.
 
-**Note:** You must have LLDB already installed on your system to use debugging features. The extension does not install debuggers automatically.
-
 ---

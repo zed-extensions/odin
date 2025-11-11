@@ -36,6 +36,8 @@
 [
   "return"
   "or_return"
+  "or_break"
+  "or_continue"
 ] @keyword.return
 
 [
@@ -107,6 +109,14 @@
 (procedure_declaration (identifier) @function (procedure (uninitialized)))
 
 (overloaded_procedure_declaration (identifier) @function)
+
+; Built-in functions
+((call_expression function: (identifier) @function.builtin)
+  (#any-of? @function.builtin
+    "len" "cap" "append" "make" "delete" "new" "free"
+    "size_of" "align_of" "offset_of" "type_of" "type_info_of" "typeid_of"
+    "min" "max" "abs" "clamp"
+    "raw_data" "swizzle"))
 
 (call_expression function: (identifier) @function.call)
 
