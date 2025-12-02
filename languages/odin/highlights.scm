@@ -36,6 +36,7 @@
 [
   "return"
   "or_return"
+  "or_else"
   "or_break"
   "or_continue"
 ] @keyword.return
@@ -116,7 +117,10 @@
     "len" "cap" "append" "make" "delete" "new" "free"
     "size_of" "align_of" "offset_of" "type_of" "type_info_of" "typeid_of"
     "min" "max" "abs" "clamp"
-    "raw_data" "swizzle"))
+    "raw_data" "swizzle"
+    "clear" "copy" "reserve" "resize" "shrink"
+    "unordered_remove" "ordered_remove" "delete_key"
+    "panic" "unreachable"))
 
 (call_expression function: (identifier) @function.call)
 
@@ -131,8 +135,8 @@
     "uint" "u8" "u16" "u32" "u64" "u128" "uintptr"
     "i16le" "i32le" "i64le" "i128le" "u16le" "u32le" "u64le" "u128le"
     "i16be" "i32be" "i64be" "i128be" "u16be" "u32be" "u64be" "u128be"
-    "float" "double" "f16" "f32" "f64" "f16le" "f32le" "f64le" "f16be" "f32be" "f64be"
-    "complex32" "complex64" "complex128" "complex_float" "complex_double"
+    "f16" "f32" "f64" "f16le" "f32le" "f64le" "f16be" "f32be" "f64be"
+    "complex32" "complex64" "complex128"
     "quaternion64" "quaternion128" "quaternion256"
     "rune" "string" "cstring" "rawptr" "typeid" "any"))
 
@@ -213,7 +217,7 @@
 ] @constant.builtin
 
 ((identifier) @variable.builtin
-  (#any-of? @variable.builtin "context" "self"))
+  (#eq? @variable.builtin "context"))
 
 ; Operators
 
@@ -226,6 +230,7 @@
   "/"
   "%"
   "%%"
+  ; "%%="
   ">"
   ">="
   "<"
@@ -243,7 +248,6 @@
   "&&"
   "!"
   "^"
-  ".."
   "+="
   "-="
   "*="
@@ -263,7 +267,6 @@
 ] @operator
 
 [
-  "or_else"
   "in"
   "not_in"
 ] @keyword.operator

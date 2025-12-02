@@ -3,7 +3,13 @@ use zed::{
     BuildTaskDefinition, BuildTaskDefinitionTemplatePayload, BuildTaskTemplate, DebugRequest,
     DebugScenario, LanguageServerId, LaunchRequest, TaskTemplate, Worktree,
 };
-use zed_extension_api::{self as zed, serde_json, settings::LspSettings, DebugConfig, Result};
+use zed_extension_api::{
+    self as zed,
+    lsp::{Completion, CompletionKind, Symbol, SymbolKind},
+    serde_json,
+    settings::LspSettings,
+    CodeLabel, CodeLabelSpan, DebugConfig, Result,
+};
 
 struct OdinExtension {
     cached_binary_path: Option<String>,
@@ -112,6 +118,47 @@ impl OdinExtension {
     }
 }
 
+impl OdinExtension {
+    fn is_integer_type(type_str: &str) -> bool {
+        matches!(
+            type_str,
+            // Basic signed integers
+            "int" | "i8" | "i16" | "i32" | "i64" | "i128" |
+            // Basic unsigned integers
+            "uint" | "u8" | "u16" | "u32" | "u64" | "u128" | "uintptr" |
+            // Integer aliases
+            "byte" | "rune" |
+            // Little-endian integers
+            "i16le" | "i32le" | "i64le" | "i128le" |
+            "u16le" | "u32le" | "u64le" | "u128le" |
+            // Big-endian integers
+            "i16be" | "i32be" | "i64be" | "i128be" |
+            "u16be" | "u32be" | "u64be" | "u128be"
+        )
+    }
+
+    fn create_label(code: String, filter_len: usize) -> CodeLabel {
+        let code_len = code.len();
+        CodeLabel {
+            code,
+            spans: vec![CodeLabelSpan::code_range(0..code_len)],
+            filter_range: (0..filter_len).into(),
+        }
+    }
+
+    fn create_label_with_span(
+        code: String,
+        span_range: std::ops::Range<usize>,
+        filter_len: usize,
+    ) -> CodeLabel {
+        CodeLabel {
+            code,
+            spans: vec![CodeLabelSpan::code_range(span_range)],
+            filter_range: (0..filter_len).into(),
+        }
+    }
+}
+
 impl zed::Extension for OdinExtension {
     fn new() -> Self {
         Self {
@@ -153,6 +200,127 @@ impl zed::Extension for OdinExtension {
             .and_then(|lsp_settings| lsp_settings.settings.clone())
             .unwrap_or_default();
         Ok(Some(settings))
+    }
+
+    fn label_for_completion(
+        &self,
+        _language_server_id: &LanguageServerId,
+        completion: Completion,
+    ) -> Option<CodeLabel> {
+        use CompletionKind::*;
+
+        let kind = completion.kind?;
+        let label = &completion.label;
+        let filter_len = label.len();
+
+        match kind {
+            Struct => {
+                let code = match &completion.detail {
+                    Some(detail) if detail.starts_with('[') || detail.starts_with("distinct") => {
+                        format!("{} :: {}", label, detail)
+                    }
+                    _ => format!("{} :: struct", label),
+                };
+                Some(Self::create_label(code, filter_len))
+            }
+
+            Enum => {
+                let code = match &completion.detail {
+                    // OLS sends union type info in detail field (e.g., "union { int, f32 }")
+                    // We can detect and display it correctly here
+                    Some(detail) if detail.contains("union") => {
+                        format!("{} :: union", label)
+                    }
+                    Some(detail) if Self::is_integer_type(detail) => {
+                        format!("{} :: enum {}", label, detail)
+                    }
+                    _ => format!("{} :: enum", label),
+                };
+                Some(Self::create_label(code, filter_len))
+            }
+
+            Variable | Field => {
+                let type_name = completion.detail.unwrap_or_else(|| "type".to_string());
+                Some(Self::create_label(
+                    format!("{}: {}", label, type_name),
+                    filter_len,
+                ))
+            }
+
+            Constant => {
+                let value = completion.detail.unwrap_or_else(|| "value".to_string());
+                Some(Self::create_label(
+                    format!("{} :: {}", label, value),
+                    filter_len,
+                ))
+            }
+
+            EnumMember => {
+                let code = format!(".{}", label);
+                Some(Self::create_label_with_span(
+                    code,
+                    1..label.len() + 1,
+                    filter_len,
+                ))
+            }
+
+            Property => {
+                let code = format!(".{}", label);
+                Some(Self::create_label_with_span(
+                    code,
+                    1..label.len() + 1,
+                    filter_len,
+                ))
+            }
+
+            Keyword => Some(CodeLabel {
+                code: label.clone(),
+                spans: vec![CodeLabelSpan::literal(
+                    label.clone(),
+                    Some("keyword".to_string()),
+                )],
+                filter_range: (0..filter_len).into(),
+            }),
+
+            Module => {
+                let code = format!("package {}", label);
+                Some(Self::create_label_with_span(
+                    code,
+                    8..label.len() + 8,
+                    filter_len,
+                ))
+            }
+
+            _ => None,
+        }
+    }
+
+    fn label_for_symbol(
+        &self,
+        _language_server_id: &LanguageServerId,
+        symbol: Symbol,
+    ) -> Option<CodeLabel> {
+        // NOTE: Symbol navigation has limited type information compared to completions.
+        // The LSP Symbol type only provides 'name' and 'kind', without detailed type info.
+
+        use SymbolKind::*;
+
+        let name = &symbol.name;
+        let filter_len = name.len();
+
+        match symbol.kind {
+            Function => Some(Self::create_label(format!("{} :: proc", name), filter_len)),
+            Variable => Some(Self::create_label(format!("{}: type", name), filter_len)),
+            Struct => Some(Self::create_label(
+                format!("{} :: struct", name),
+                filter_len,
+            )),
+            // OLS sends both enums and unions as Enum kind (cannot distinguish in symbols)
+            Enum => Some(Self::create_label(format!("{} :: enum", name), filter_len)),
+            // Struct and union fields
+            Field => Some(Self::create_label(format!("{}: type", name), filter_len)),
+            _ => None,
+        }
     }
 
     fn dap_config_to_scenario(&mut self, config: DebugConfig) -> Result<DebugScenario, String> {
