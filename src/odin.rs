@@ -37,7 +37,7 @@ impl OdinExtension {
         }
 
         if let Some(path) = &self.cached_binary_path {
-            if fs::metadata(path).map_or(false, |stat| stat.is_file()) {
+            if fs::metadata(path).is_ok_and(|stat| stat.is_file()) {
                 return Ok(path.to_string());
             }
         }
@@ -87,7 +87,7 @@ impl OdinExtension {
             },
         );
 
-        if !fs::metadata(&binary_path).map_or(false, |stat| stat.is_file()) {
+        if !fs::metadata(&binary_path).is_ok_and(|stat| stat.is_file()) {
             zed::set_language_server_installation_status(
                 language_server_id,
                 &zed::LanguageServerInstallationStatus::Downloading,
@@ -418,13 +418,13 @@ impl zed::Extension for OdinExtension {
 
         Some(DebugScenario {
             adapter: debug_adapter_name,
-            label: label,
-            config: config,
+            label,
+            config,
             tcp_connection: None,
             build: Some(BuildTaskDefinition::Template(
                 BuildTaskDefinitionTemplatePayload {
                     template: build_template,
-                    locator_name: Some(locator_name.into()),
+                    locator_name: Some(locator_name),
                 },
             )),
         })
@@ -462,7 +462,7 @@ impl zed::Extension for OdinExtension {
         let program = format!("{}{}{}", cwd, separator, output_name);
 
         let request = LaunchRequest {
-            program: program,
+            program,
             cwd: build_task.cwd,
             args: vec![],
             envs: build_task.env.into_iter().collect(),
