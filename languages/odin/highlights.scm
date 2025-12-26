@@ -26,6 +26,7 @@
   "auto_cast"
   "map"
   "bit_set"
+  "bit_field"
   "matrix"
 ] @keyword
 
