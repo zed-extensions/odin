@@ -383,7 +383,14 @@ impl zed::Extension for OdinExtension {
         build_args[0] = "build".to_string();
 
         // Add -out flag to control output name
-        build_args.push("-out:debug_build".into());
+        let (platform, _) = zed::current_platform();
+        let extension = if platform == zed::Os::Windows {
+            ".exe"
+        } else {
+            ""
+        };
+        let out_name = format!("debug_build{}", extension);
+        build_args.push(format!("-out:{}", out_name));
 
         // Add -debug flag if not present
         if !build_args.contains(&"-debug".into()) {
@@ -446,7 +453,13 @@ impl zed::Extension for OdinExtension {
 
         // Construct absolute path to the binary, since lldb-dap requires absolute paths
         let cwd = build_task.cwd.as_ref().ok_or("No cwd in build task")?;
-        let program = format!("{}/{}", cwd, output_name);
+        let (platform, _) = zed::current_platform();
+        let separator = if platform == zed::Os::Windows {
+            "\\"
+        } else {
+            "/"
+        };
+        let program = format!("{}{}{}", cwd, separator, output_name);
 
         let request = LaunchRequest {
             program,
