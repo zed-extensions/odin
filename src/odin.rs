@@ -390,7 +390,7 @@ impl zed::Extension for OdinExtension {
             ""
         };
         let out_name = format!("debug_build{}", extension);
-        build_args.push(format!("-out:{}", out_name).into());
+        build_args.push(format!("-out:{}", out_name));
 
         // Add -debug flag if not present
         if !build_args.contains(&"-debug".into()) {
