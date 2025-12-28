@@ -104,7 +104,7 @@
 
 ; Functions
 
-(procedure_declaration (identifier) @type)
+(procedure_declaration . (identifier) @function)
 
 (procedure_declaration (identifier) @function (procedure (block)))
 
