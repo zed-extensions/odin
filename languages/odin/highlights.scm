@@ -167,6 +167,10 @@
 
 ; Fields
 
+(member_expression
+  (call_expression
+    function: (identifier) @function.call))
+
 (member_expression "." (identifier) @variable.member)
 
 (struct_type "{" (identifier) @variable.member)

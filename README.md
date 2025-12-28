@@ -10,7 +10,7 @@ This project provides Odin programming language support, featuring syntax highli
 
 ## Language Server
 
-This extension automatically updates to the latest OLS (Odin Language Server) nightly build on each startup.
+This extension automatically updates to the latest OLS (Odin Language Server) monthly build on each startup.
 
 ### Using a Custom OLS Binary
 
@@ -28,6 +28,15 @@ If you want to use a specific OLS version or a locally built binary, you can ove
   }
 }
 ```
+
+### Binary Resolution Order
+
+The extension searches for the OLS binary in the following priority order:
+
+1. **Custom binary path** - If configured in settings (see above)
+2. **System PATH** - Checks if `ols` is available in your system PATH
+3. **Cached binary** - Uses previously downloaded version if available
+4. **GitHub download** - Downloads latest release from [DanielGavin/ols](https://github.com/DanielGavin/ols/releases)
 
 ---
 
