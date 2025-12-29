@@ -33,13 +33,17 @@ If you want to use a specific OLS version or a locally built binary, you can ove
 
 ## Configuration
 
-You can customize OLS behavior if needed:
+### Automatic Collections Setup
 
-### Configure via Zed Settings (Recommended)
+The extension attempts to automatically configure Odin collections (`core`, `shared`, `vendor`) if the `odin` binary is found in your PATH. User-configured collections always take precedence and are merged with auto-detected ones.
+
+### Manual Configuration
+
+#### Configure via Zed Settings (Recommended)
 
 Add OLS configuration directly in your Zed `settings.json`. This approach works project-wide and doesn't require additional files:
 
-```json
+```jsonc
 {
   "lsp": {
     "ols": {
@@ -52,6 +56,8 @@ Add OLS configuration directly in your Zed `settings.json`. This approach works 
         "enable_document_symbols": true,
         "enable_format": true,
         "enable_document_links": true,
+        // Optional: collections are auto-populated by default (core, shared, vendor)
+        // Only specify if you want to override or add custom collections
         "collections": [
           {
             "name": "core",
@@ -64,58 +70,9 @@ Add OLS configuration directly in your Zed `settings.json`. This approach works 
 }
 ```
 
-**Note**: Replace `/path/to/Odin/core` with the actual path to your Odin installation's core library.
+#### Use `ols.json` in Workspace Root
 
-### Use `ols.json` in Workspace Root
-
-Alternatively, create an `ols.json` file at the root of your workspace:
-
-```json
-{
-  "$schema": "https://raw.githubusercontent.com/DanielGavin/ols/master/misc/ols.schema.json",
-  "collections": [
-    {
-      "name": "core",
-      "path": "/path/to/Odin/core"
-    }
-  ],
-  "enable_hover": true,
-  "enable_snippets": true,
-  "enable_procedure_snippet": true,
-  "enable_completion_matching": true,
-  "enable_references": true,
-  "enable_document_symbols": true,
-  "enable_format": true,
-  "enable_document_links": true
-}
-```
-
-### Key Configuration Options
-
-- **`enable_hover`**: Shows detailed documentation when hovering over symbols
-- **`enable_snippets`**: Provides code templates and snippets
-- **`enable_procedure_snippet`**: Auto-adds parentheses after function names for better UX
-- **`enable_completion_matching`**: Enables type-aware completions that match argument types
-- **`enable_references`**: Allows finding all references to symbols
-- **`enable_document_symbols`**: Enables better outline/symbol navigation
-- **`enable_format`**: Enables code formatting support via `odinfmt`
-- **`enable_document_links`**: Enables clickable documentation links
-- **`collections`**: Defines library paths that OLS indexes for completions (critical for core library support)
-
-### Finding Your Odin Core Path
-
-To find your Odin installation path:
-
-```bash
-# macOS/Linux
-which odin
-# Then navigate to ../core from the Odin binary location
-
-# Or check ODIN_ROOT environment variable
-echo $ODIN_ROOT
-```
-
-For more configuration options, see the [OLS documentation](https://github.com/DanielGavin/ols#configuration).
+Alternatively, create an `ols.json` file at the root of your workspace.For more configuration options, see the [OLS documentation](https://github.com/DanielGavin/ols#configuration).
 
 ---
 
