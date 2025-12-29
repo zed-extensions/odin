@@ -18,6 +18,23 @@ struct OdinExtension {
 const GITHUB_REPO: &str = "DanielGavin/ols";
 
 impl OdinExtension {
+    fn get_default_collections(&self, worktree: &Worktree) -> Option<Vec<(&str, String)>> {
+        use std::path::Path;
+        let odin_path = worktree.which("odin")?;
+        let path = Path::new(&odin_path);
+        let root = path.parent()?;
+
+        let core_str = root.join("core").to_str()?.to_string();
+        let shared_str = root.join("shared").to_str()?.to_string();
+        let vendor_str = root.join("vendor").to_str()?.to_string();
+
+        Some(vec![
+            ("core", core_str),
+            ("shared", shared_str),
+            ("vendor", vendor_str),
+        ])
+    }
+
     fn language_server_binary_path(
         &mut self,
         language_server_id: &LanguageServerId,
@@ -184,10 +201,49 @@ impl zed::Extension for OdinExtension {
         language_server_id: &LanguageServerId,
         worktree: &Worktree,
     ) -> Result<Option<serde_json::Value>> {
-        let settings = LspSettings::for_worktree(language_server_id.as_ref(), worktree)
+        // Get user-configured settings (these take precedence)
+        let mut settings = LspSettings::for_worktree(language_server_id.as_ref(), worktree)
             .ok()
-            .and_then(|lsp_settings| lsp_settings.initialization_options.clone());
-        Ok(settings)
+            .and_then(|lsp_settings| lsp_settings.initialization_options.clone())
+            .unwrap_or_else(|| serde_json::json!({}));
+
+        // Auto-configure collections, merging with user overrides
+        if let serde_json::Value::Object(ref mut map) = settings {
+            if let Some(defaults) = self.get_default_collections(worktree) {
+                let user_collections = map.get("collections").and_then(|v| v.as_array());
+                let final_collections = if let Some(user_cols) = user_collections {
+                    let user_names: std::collections::HashSet<_> = user_cols
+                        .iter()
+                        .filter_map(|c| c.get("name").and_then(|n| n.as_str()))
+                        .collect();
+
+                    let mut merged = Vec::new();
+
+                    for user_col in user_cols {
+                        merged.push(user_col.clone());
+                    }
+
+                    // Add defaults that weren't overridden by user
+                    for (name, path) in defaults {
+                        if !user_names.contains(name) {
+                            merged.push(serde_json::json!({ "name": name, "path": path }));
+                        }
+                    }
+
+                    serde_json::Value::Array(merged)
+                } else {
+                    // No user collections, just use defaults
+                    serde_json::json!(defaults
+                        .iter()
+                        .map(|(name, path)| serde_json::json!({ "name": name, "path": path }))
+                        .collect::<Vec<_>>())
+                };
+
+                map.insert("collections".to_string(), final_collections);
+            }
+        }
+
+        Ok(Some(settings))
     }
 
     fn language_server_workspace_configuration(
