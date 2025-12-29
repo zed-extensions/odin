@@ -8,7 +8,7 @@ use zed_extension_api::{
     lsp::{Completion, CompletionKind, Symbol, SymbolKind},
     serde_json,
     settings::LspSettings,
-    CodeLabel, CodeLabelSpan, DebugConfig, Result,
+    Architecture, CodeLabel, CodeLabelSpan, DebugConfig, Os, Result,
 };
 
 struct OdinExtension {
@@ -18,6 +18,59 @@ struct OdinExtension {
 const GITHUB_REPO: &str = "DanielGavin/ols";
 
 impl OdinExtension {
+    fn exe_suffix(platform: Os) -> &'static str {
+        match platform {
+            Os::Windows => ".exe",
+            _ => "",
+        }
+    }
+
+    fn path_separator(platform: Os) -> &'static str {
+        match platform {
+            Os::Windows => "\\",
+            _ => "/",
+        }
+    }
+
+    fn ols_binary_name(&self, platform: Os, arch: Architecture) -> Option<String> {
+        let arch: &str = match arch {
+            zed::Architecture::Aarch64 => "arm64",
+            zed::Architecture::X8664 => "x86_64",
+            zed::Architecture::X86 => return None, // Not supported
+        };
+
+        let os: &str = match platform {
+            zed::Os::Mac => "darwin",
+            zed::Os::Linux => "unknown-linux-gnu",
+            zed::Os::Windows => "pc-windows-msvc",
+        };
+
+        let binary_name = format!("ols-{arch}-{os}");
+        Some(binary_name)
+    }
+
+    fn find_existing_ols_binary(&self) -> Option<String> {
+        let entries = fs::read_dir(".").ok()?;
+        let (platform, arch) = zed::current_platform();
+        let binary_name = self.ols_binary_name(platform, arch)?;
+        let executable_name = format!("{}{}", binary_name, Self::exe_suffix(platform));
+        let separator = Self::path_separator(platform);
+
+        for entry in entries.flatten() {
+            let file_name = entry.file_name();
+            let name_str = file_name.to_str()?;
+            if name_str.starts_with("ols-") && entry.path().is_dir() {
+                let binary_path = entry.path().join(&executable_name);
+                if binary_path.is_file() {
+                    let full_path = format!("{}{}{}", name_str, separator, executable_name);
+                    return Some(full_path);
+                }
+            }
+        }
+
+        None
+    }
+
     fn get_default_collections(&self, worktree: &Worktree) -> Option<Vec<(&str, String)>> {
         use std::path::Path;
         let odin_path = worktree.which("odin")?;
@@ -64,30 +117,33 @@ impl OdinExtension {
             &zed::LanguageServerInstallationStatus::CheckingForUpdate,
         );
 
-        let release = zed::latest_github_release(
+        let release = match zed::latest_github_release(
             GITHUB_REPO,
             zed::GithubReleaseOptions {
                 require_assets: true,
-                pre_release: true,
+                pre_release: false,
             },
-        )?;
+        ) {
+            Ok(release) => release,
+            Err(e) => {
+                if let Some(path) = self.find_existing_ols_binary() {
+                    self.cached_binary_path = Some(path.clone());
+                    return Ok(path);
+                }
+
+                return Err(format!(
+                    "Failed to download OLS language server: {}\n\n\
+                    To resolve this issue, you can connect to the internet and restart Zed or Manually install OLS.",
+                    e
+                ));
+            }
+        };
 
         let (platform, arch) = zed::current_platform();
-
-        let arch: &str = match arch {
-            zed::Architecture::Aarch64 => "arm64",
-            zed::Architecture::X8664 => "x86_64",
-            zed::Architecture::X86 => return Err("Unsupported platform x86".into()),
-        };
-
-        let os: &str = match platform {
-            zed::Os::Mac => "darwin",
-            zed::Os::Linux => "unknown-linux-gnu",
-            zed::Os::Windows => "pc-windows-msvc",
-        };
-
-        let file_name = format!("ols-{arch}-{os}");
-        let asset_name = format!("{file_name}.zip");
+        let file_name = self
+            .ols_binary_name(platform, arch)
+            .ok_or_else(|| format!("Unsupported platform {:?}", arch))?;
+        let asset_name = format!("{}.zip", file_name);
 
         let asset = release
             .assets
@@ -96,12 +152,13 @@ impl OdinExtension {
             .ok_or_else(|| format!("no asset found matching {:?}", asset_name))?;
 
         let version_dir = format!("ols-{}", release.version);
+        let separator = Self::path_separator(platform);
         let binary_path = format!(
-            "{version_dir}/{file_name}{extension}",
-            extension = match platform {
-                zed::Os::Windows => ".exe",
-                _ => "",
-            },
+            "{}{}{}{}",
+            version_dir,
+            separator,
+            file_name,
+            Self::exe_suffix(platform)
         );
 
         if !fs::metadata(&binary_path).is_ok_and(|stat| stat.is_file()) {
@@ -440,12 +497,7 @@ impl zed::Extension for OdinExtension {
 
         // Add -out flag to control output name
         let (platform, _) = zed::current_platform();
-        let extension = if platform == zed::Os::Windows {
-            ".exe"
-        } else {
-            ""
-        };
-        let out_name = format!("debug_build{}", extension);
+        let out_name = format!("debug_build{}", Self::exe_suffix(platform));
         build_args.push(format!("-out:{}", out_name));
 
         // Add -debug flag if not present
@@ -510,11 +562,7 @@ impl zed::Extension for OdinExtension {
         // Construct absolute path to the binary, since lldb-dap requires absolute paths
         let cwd = build_task.cwd.as_ref().ok_or("No cwd in build task")?;
         let (platform, _) = zed::current_platform();
-        let separator = if platform == zed::Os::Windows {
-            "\\"
-        } else {
-            "/"
-        };
+        let separator = Self::path_separator(platform);
         let program = format!("{}{}{}", cwd, separator, output_name);
 
         let request = LaunchRequest {
