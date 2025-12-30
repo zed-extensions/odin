@@ -4,6 +4,7 @@ path_suffixes = ["odin"]
 line_comments = ["// "]
 block_comment = ["/* ", " */"]
 autoclose_before = ";:.,=}])>"
+hard_tabs = true
 brackets = [
     { start = "{", end = "}", close = true, newline = true },
     { start = "[", end = "]", close = true, newline = true },
