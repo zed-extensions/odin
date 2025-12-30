@@ -1,6 +1,6 @@
 id = "odin"
 name = "Odin"
-version = "0.3.7"
+version = "0.3.8"
 schema_version = 1
 authors = ["Mo Nematzadeh <mohammad.h.nematzadeh@gmail.com>"]
 description = "Odin support."
