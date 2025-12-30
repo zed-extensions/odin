@@ -42,12 +42,6 @@ The extension searches for the OLS binary in the following priority order:
 
 ## Configuration
 
-### Automatic Collections Setup
-
-The extension attempts to automatically configure Odin collections (`core`, `shared`, `vendor`) if the `odin` binary is found in your PATH. User-configured collections always take precedence and are merged with auto-detected ones.
-
-### Manual Configuration
-
 #### Configure via Zed Settings (Recommended)
 
 Add OLS configuration directly in your Zed `settings.json`. This approach works project-wide and doesn't require additional files:
@@ -65,12 +59,10 @@ Add OLS configuration directly in your Zed `settings.json`. This approach works 
         "enable_document_symbols": true,
         "enable_format": true,
         "enable_document_links": true,
-        // Optional: collections are auto-populated by default (core, shared, vendor)
-        // Only specify if you want to override or add custom collections
         "collections": [
           {
-            "name": "core",
-            "path": "/path/to/Odin/core"
+            "name": "shared",
+            "path": "/path/to/shared"
           }
         ]
       }
