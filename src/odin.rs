@@ -458,7 +458,7 @@ impl zed::Extension for OdinExtension {
         // Create the build task template
         let build_template = BuildTaskTemplate {
             label: if is_test {
-                "odin debug test build".into()
+                "odin debug test".into()
             } else {
                 "odin debug build".into()
             },
@@ -475,7 +475,7 @@ impl zed::Extension for OdinExtension {
         let base_label = resolved_label
             .strip_prefix("run: ")
             .or_else(|| resolved_label.strip_prefix("test: "))
-            .unwrap_or(&resolved_label) // Both sides are now &str
+            .unwrap_or(&resolved_label)
             .to_string();
 
         // Add a special prefix to clarify debugging tests
