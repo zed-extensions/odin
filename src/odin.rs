@@ -474,6 +474,7 @@ impl zed::Extension for OdinExtension {
         // Remove the prefix from the task label, since 'debug: ' will be prepended by default if no prefix is provided
         let base_label = resolved_label
             .strip_prefix("run: ")
+            .or_else(|| resolved_label.strip_prefix("test: "))
             .unwrap_or(&resolved_label) // Both sides are now &str
             .to_string();
 
