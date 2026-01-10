@@ -471,12 +471,20 @@ impl zed::Extension for OdinExtension {
         // Config is Null - the actual launch config comes from run_dap_locator
         let config = serde_json::to_string(&serde_json::Value::Null).ok()?;
 
-        // Remove 'run: ' from the task label, since 'debug: ' will be prepended by default
-        let label = resolved_label
-            .clone()
-            .strip_prefix("run: ")
-            .unwrap_or(&resolved_label)
-            .to_string();
+        // Update the task labels. The resulting label will be displayed as-is in
+        // the F4 Debug menu and will have "Debug: " prepended to the label when
+        // shown in the test gutter.
+        let label = if is_run {
+            resolved_label
+                .strip_prefix("run: ")
+                .unwrap_or(&resolved_label)
+                .to_string()
+        } else {
+            resolved_label
+                .strip_prefix("test: ")
+                .map(|suffix| format!("test {}", suffix))
+                .unwrap_or_else(|| resolved_label.clone())
+        };
 
         Some(DebugScenario {
             adapter: debug_adapter_name,
