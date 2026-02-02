@@ -26,6 +26,7 @@
   "auto_cast"
   "map"
   "bit_set"
+  "bit_field"
   "matrix"
 ] @keyword
 
@@ -103,7 +104,7 @@
 
 ; Functions
 
-(procedure_declaration (identifier) @type)
+(procedure_declaration . (identifier) @function)
 
 (procedure_declaration (identifier) @function (procedure (block)))
 
@@ -165,6 +166,10 @@
   (#not-has-parent? @type parameter procedure_declaration call_expression))
 
 ; Fields
+
+(member_expression
+  (call_expression
+    function: (identifier) @function.call))
 
 (member_expression "." (identifier) @variable.member)
 

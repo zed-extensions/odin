@@ -9,7 +9,7 @@ use zed_extension_api::{
     lsp::{Completion, CompletionKind, Symbol, SymbolKind},
     serde_json,
     settings::LspSettings,
-    CodeLabel, CodeLabelSpan, DebugConfig, Result,
+    Architecture, CodeLabel, CodeLabelSpan, DebugConfig, Os, Result,
 };
 
 struct OdinExtension {
@@ -21,6 +21,59 @@ const GITHUB_REPO: &str = "DanielGavin/ols";
 const ODIN_SCRIPT: &str = include_str!("../resources/lldb/odin.py");
 
 impl OdinExtension {
+    fn exe_suffix(platform: Os) -> &'static str {
+        match platform {
+            Os::Windows => ".exe",
+            _ => "",
+        }
+    }
+
+    fn path_separator(platform: Os) -> &'static str {
+        match platform {
+            Os::Windows => "\\",
+            _ => "/",
+        }
+    }
+
+    fn ols_binary_name(&self, platform: Os, arch: Architecture) -> Option<String> {
+        let arch: &str = match arch {
+            zed::Architecture::Aarch64 => "arm64",
+            zed::Architecture::X8664 => "x86_64",
+            zed::Architecture::X86 => return None, // Not supported
+        };
+
+        let os: &str = match platform {
+            zed::Os::Mac => "darwin",
+            zed::Os::Linux => "unknown-linux-gnu",
+            zed::Os::Windows => "pc-windows-msvc",
+        };
+
+        let binary_name = format!("ols-{arch}-{os}");
+        Some(binary_name)
+    }
+
+    fn find_existing_ols_binary(&self) -> Option<String> {
+        let entries = fs::read_dir(".").ok()?;
+        let (platform, arch) = zed::current_platform();
+        let binary_name = self.ols_binary_name(platform, arch)?;
+        let executable_name = format!("{}{}", binary_name, Self::exe_suffix(platform));
+        let separator = Self::path_separator(platform);
+
+        for entry in entries.flatten() {
+            let file_name = entry.file_name();
+            let name_str = file_name.to_str()?;
+            if name_str.starts_with("ols-") && entry.path().is_dir() {
+                let binary_path = entry.path().join(&executable_name);
+                if binary_path.is_file() {
+                    let full_path = format!("{}{}{}", name_str, separator, executable_name);
+                    return Some(full_path);
+                }
+            }
+        }
+
+        None
+    }
+
     fn language_server_binary_path(
         &mut self,
         language_server_id: &LanguageServerId,
@@ -40,7 +93,7 @@ impl OdinExtension {
         }
 
         if let Some(path) = &self.cached_binary_path {
-            if fs::metadata(path).map_or(false, |stat| stat.is_file()) {
+            if fs::metadata(path).is_ok_and(|stat| stat.is_file()) {
                 return Ok(path.to_string());
             }
         }
@@ -50,30 +103,33 @@ impl OdinExtension {
             &zed::LanguageServerInstallationStatus::CheckingForUpdate,
         );
 
-        let release = zed::latest_github_release(
+        let release = match zed::latest_github_release(
             GITHUB_REPO,
             zed::GithubReleaseOptions {
                 require_assets: true,
-                pre_release: true,
+                pre_release: false,
             },
-        )?;
+        ) {
+            Ok(release) => release,
+            Err(e) => {
+                if let Some(path) = self.find_existing_ols_binary() {
+                    self.cached_binary_path = Some(path.clone());
+                    return Ok(path);
+                }
+
+                return Err(format!(
+                    "Failed to download OLS language server: {}\n\n\
+                    To resolve this issue, you can connect to the internet and restart Zed or Manually install OLS.",
+                    e
+                ));
+            }
+        };
 
         let (platform, arch) = zed::current_platform();
-
-        let arch: &str = match arch {
-            zed::Architecture::Aarch64 => "arm64",
-            zed::Architecture::X8664 => "x86_64",
-            zed::Architecture::X86 => return Err("Unsupported platform x86".into()),
-        };
-
-        let os: &str = match platform {
-            zed::Os::Mac => "darwin",
-            zed::Os::Linux => "unknown-linux-gnu",
-            zed::Os::Windows => "pc-windows-msvc",
-        };
-
-        let file_name = format!("ols-{arch}-{os}");
-        let asset_name = format!("{file_name}.zip");
+        let file_name = self
+            .ols_binary_name(platform, arch)
+            .ok_or_else(|| format!("Unsupported platform {:?}", arch))?;
+        let asset_name = format!("{}.zip", file_name);
 
         let asset = release
             .assets
@@ -82,15 +138,16 @@ impl OdinExtension {
             .ok_or_else(|| format!("no asset found matching {:?}", asset_name))?;
 
         let version_dir = format!("ols-{}", release.version);
+        let separator = Self::path_separator(platform);
         let binary_path = format!(
-            "{version_dir}/{file_name}{extension}",
-            extension = match platform {
-                zed::Os::Windows => ".exe",
-                _ => "",
-            },
+            "{}{}{}{}",
+            version_dir,
+            separator,
+            file_name,
+            Self::exe_suffix(platform)
         );
 
-        if !fs::metadata(&binary_path).map_or(false, |stat| stat.is_file()) {
+        if !fs::metadata(&binary_path).is_ok_and(|stat| stat.is_file()) {
             zed::set_language_server_installation_status(
                 language_server_id,
                 &zed::LanguageServerInstallationStatus::Downloading,
@@ -375,9 +432,11 @@ impl zed::Extension for OdinExtension {
         resolved_label: String,
         debug_adapter_name: String,
     ) -> Option<DebugScenario> {
-        // Only handle Odin run tasks
-        if build_task.command != "odin" || build_task.args.is_empty() || build_task.args[0] != "run"
-        {
+        let is_run = build_task.command == "odin" && build_task.args.first() == Some(&"run".into());
+        let is_test =
+            build_task.command == "odin" && build_task.args.first() == Some(&"test".into());
+
+        if !is_run && !is_test {
             return None;
         }
 
@@ -386,16 +445,26 @@ impl zed::Extension for OdinExtension {
         build_args[0] = "build".to_string();
 
         // Add -out flag to control output name
-        build_args.push("-out:debug_build".into());
+        let (platform, _) = zed::current_platform();
+        let out_name = format!("debug_build{}", Self::exe_suffix(platform));
+        build_args.push(format!("-out:{}", out_name));
 
         // Add -debug flag if not present
         if !build_args.contains(&"-debug".into()) {
             build_args.push("-debug".into());
         }
 
+        if is_test {
+            build_args.push("-build-mode:test".into())
+        }
+
         // Create the build task template
         let build_template = BuildTaskTemplate {
-            label: "odin debug build".into(),
+            label: if is_test {
+                "odin debug test".into()
+            } else {
+                "odin debug build".into()
+            },
             command: build_task.command.clone(),
             args: build_args,
             env: build_task.env.clone(),
@@ -417,22 +486,30 @@ impl zed::Extension for OdinExtension {
 
         let config = serde_json::to_string(&config_map).ok()?;
 
-        // Remove 'run: ' from the task label, since 'debug: ' will be prepended by default
-        let label = resolved_label
-            .clone()
-            .strip_prefix("run: ")
-            .unwrap_or(&resolved_label)
-            .to_string();
+        // Update the task labels. The resulting label will be displayed as-is in
+        // the F4 Debug menu and will have "Debug: " prepended to the label when
+        // shown in the test gutter.
+        let label = if is_run {
+            resolved_label
+                .strip_prefix("run: ")
+                .unwrap_or(&resolved_label)
+                .to_string()
+        } else {
+            resolved_label
+                .strip_prefix("test: ")
+                .map(|suffix| format!("test {}", suffix))
+                .unwrap_or_else(|| resolved_label.clone())
+        };
 
         Some(DebugScenario {
             adapter: debug_adapter_name,
-            label: label,
-            config: config,
+            label,
+            config,
             tcp_connection: None,
             build: Some(BuildTaskDefinition::Template(
                 BuildTaskDefinitionTemplatePayload {
                     template: build_template,
-                    locator_name: Some(locator_name.into()),
+                    locator_name: Some(locator_name),
                 },
             )),
         })
@@ -443,12 +520,12 @@ impl zed::Extension for OdinExtension {
         _locator_name: String,
         build_task: TaskTemplate,
     ) -> Result<DebugRequest, String> {
-        // Only handle Odin build tasks
+        // Only handle Odin build and test tasks
         if build_task.command != "odin"
             || build_task.args.is_empty()
-            || build_task.args[0] != "build"
+            || !(build_task.args[0] == "build" || build_task.args[0] == "test")
         {
-            return Err("Not an Odin build task".to_string());
+            return Err("Not an Odin build or test task".to_string());
         }
 
         // Extract the binary name from the -out: flag
@@ -461,10 +538,12 @@ impl zed::Extension for OdinExtension {
 
         // Construct absolute path to the binary, since lldb-dap requires absolute paths
         let cwd = build_task.cwd.as_ref().ok_or("No cwd in build task")?;
-        let program = format!("{}/{}", cwd, output_name);
+        let (platform, _) = zed::current_platform();
+        let separator = Self::path_separator(platform);
+        let program = format!("{}{}{}", cwd, separator, output_name);
 
         let request = LaunchRequest {
-            program: program,
+            program,
             cwd: build_task.cwd,
             args: vec![],
             envs: build_task.env.into_iter().collect(),

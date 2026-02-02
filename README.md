@@ -10,7 +10,7 @@ This project provides Odin programming language support, featuring syntax highli
 
 ## Language Server
 
-This extension automatically updates to the latest OLS (Odin Language Server) nightly build on each startup.
+This extension automatically updates to the latest OLS (Odin Language Server) monthly build on each startup.
 
 ### Using a Custom OLS Binary
 
@@ -29,17 +29,24 @@ If you want to use a specific OLS version or a locally built binary, you can ove
 }
 ```
 
+### Binary Resolution Order
+
+The extension searches for the OLS binary in the following priority order:
+
+1. **Custom binary path** - If configured in settings (see above)
+2. **System PATH** - Checks if `ols` is available in your system PATH
+3. **Cached binary** - Uses previously downloaded version if available
+4. **GitHub download** - Downloads latest release from [DanielGavin/ols](https://github.com/DanielGavin/ols/releases)
+
 ---
 
 ## Configuration
 
-You can customize OLS behavior if needed:
-
-### Configure via Zed Settings (Recommended)
+#### Configure via Zed Settings (Recommended)
 
 Add OLS configuration directly in your Zed `settings.json`. This approach works project-wide and doesn't require additional files:
 
-```json
+```jsonc
 {
   "lsp": {
     "ols": {
@@ -54,8 +61,8 @@ Add OLS configuration directly in your Zed `settings.json`. This approach works 
         "enable_document_links": true,
         "collections": [
           {
-            "name": "core",
-            "path": "/path/to/Odin/core"
+            "name": "shared",
+            "path": "/path/to/shared"
           }
         ]
       }
@@ -64,58 +71,9 @@ Add OLS configuration directly in your Zed `settings.json`. This approach works 
 }
 ```
 
-**Note**: Replace `/path/to/Odin/core` with the actual path to your Odin installation's core library.
+#### Use `ols.json` in Workspace Root
 
-### Use `ols.json` in Workspace Root
-
-Alternatively, create an `ols.json` file at the root of your workspace:
-
-```json
-{
-  "$schema": "https://raw.githubusercontent.com/DanielGavin/ols/master/misc/ols.schema.json",
-  "collections": [
-    {
-      "name": "core",
-      "path": "/path/to/Odin/core"
-    }
-  ],
-  "enable_hover": true,
-  "enable_snippets": true,
-  "enable_procedure_snippet": true,
-  "enable_completion_matching": true,
-  "enable_references": true,
-  "enable_document_symbols": true,
-  "enable_format": true,
-  "enable_document_links": true
-}
-```
-
-### Key Configuration Options
-
-- **`enable_hover`**: Shows detailed documentation when hovering over symbols
-- **`enable_snippets`**: Provides code templates and snippets
-- **`enable_procedure_snippet`**: Auto-adds parentheses after function names for better UX
-- **`enable_completion_matching`**: Enables type-aware completions that match argument types
-- **`enable_references`**: Allows finding all references to symbols
-- **`enable_document_symbols`**: Enables better outline/symbol navigation
-- **`enable_format`**: Enables code formatting support via `odinfmt`
-- **`enable_document_links`**: Enables clickable documentation links
-- **`collections`**: Defines library paths that OLS indexes for completions (critical for core library support)
-
-### Finding Your Odin Core Path
-
-To find your Odin installation path:
-
-```bash
-# macOS/Linux
-which odin
-# Then navigate to ../core from the Odin binary location
-
-# Or check ODIN_ROOT environment variable
-echo $ODIN_ROOT
-```
-
-For more configuration options, see the [OLS documentation](https://github.com/DanielGavin/ols#configuration).
+Alternatively, create an `ols.json` file at the root of your workspace.For more configuration options, see the [OLS documentation](https://github.com/DanielGavin/ols#configuration).
 
 ---
 
