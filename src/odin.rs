@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose, Engine as _};
 use std::fs;
 use zed::{
     BuildTaskDefinition, BuildTaskDefinitionTemplatePayload, BuildTaskTemplate, DebugRequest,
@@ -16,6 +17,8 @@ struct OdinExtension {
 }
 
 const GITHUB_REPO: &str = "DanielGavin/ols";
+
+const ODIN_SCRIPT: &str = include_str!("../resources/lldb/odin.py");
 
 impl OdinExtension {
     fn exe_suffix(platform: Os) -> &'static str {
@@ -468,8 +471,20 @@ impl zed::Extension for OdinExtension {
             cwd: build_task.cwd.clone(),
         };
 
-        // Config is Null - the actual launch config comes from run_dap_locator
-        let config = serde_json::to_string(&serde_json::Value::Null).ok()?;
+        let mut config_map = serde_json::Map::new();
+
+        let encoded_script = general_purpose::STANDARD.encode(ODIN_SCRIPT);
+        let exec_command = format!(
+            "script import base64, types; odin = types.SimpleNamespace(); exec(base64.b64decode('{}').decode(), odin.__dict__); odin.__dict__['__lldb_init_module'](lldb.debugger, {{}})",
+            encoded_script
+        );
+
+        config_map.insert(
+            "preRunCommands".to_string(),
+            serde_json::json!(vec![exec_command]),
+        );
+
+        let config = serde_json::to_string(&config_map).ok()?;
 
         // Update the task labels. The resulting label will be displayed as-is in
         // the F4 Debug menu and will have "Debug: " prepended to the label when
