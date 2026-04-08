@@ -162,7 +162,7 @@
 (polymorphic_parameters (identifier) @type)
 
 ((identifier) @type
-  (#match? @type "^[A-Z][a-zA-Z0-9]*$")
+  (#match? @type "^[A-Z][a-zA-Z0-9_]*$")
   (#not-has-parent? @type parameter procedure_declaration call_expression))
 
 ; Fields
