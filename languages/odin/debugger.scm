@@ -1,11 +1,19 @@
 (block) @debug-scope
+
 (procedure_declaration) @debug-scope
+
 (struct_declaration) @debug-scope
+
 (enum_declaration) @debug-scope
+
 (union_declaration) @debug-scope
+
 (for_statement) @debug-scope
+
 (if_statement) @debug-scope
+
 (when_statement) @debug-scope
+
 (switch_statement) @debug-scope
 
 (variable_declaration
@@ -41,4 +49,4 @@
   (#not-eq? @debug-variable "_"))
 
 (identifier) @debug-variable
-  (#not-eq? @debug-variable "_")
+(#not-eq? @debug-variable "_")
