@@ -221,7 +221,12 @@
 ; Constants
 ((identifier) @constant
   (#match? @constant "^_*[A-Z][A-Z0-9_]*$")
-  (#not-has-parent? @constant type parameter))
+  (#not-has-parent? @constant type)
+  (#not-has-parent? @constant parameter)
+  (#not-has-parent? @constant struct_declaration)
+  (#not-has-parent? @constant enum_declaration)
+  (#not-has-parent? @constant union_declaration)
+  (#not-has-parent? @constant bit_field_declaration))
 
 (member_expression
   .
