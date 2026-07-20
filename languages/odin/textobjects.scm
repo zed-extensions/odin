@@ -5,6 +5,7 @@
       "{"
       (_)* @function.inside
       "}"))) @function.around
+
 (overloaded_procedure_declaration) @function.around
 
 ; Type declarations
@@ -17,4 +18,5 @@
 
 ; Comments
 (comment)+ @comment.around
+
 (block_comment) @comment.around
