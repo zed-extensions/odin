@@ -195,6 +195,7 @@ A bundled LLDB formatter is injected into every session, so the Variables panel 
 | `[]T`, `[dynamic]T` | element list, chunked for very large slices |
 | `map[K]V` | `len = N, cap = M`, expanding to one `["key"] = value` row per entry |
 | `union`, `Maybe(T)` | all variants with the active one marked `*`; nil unions show `nil`; `#no_nil` unions supported |
+| `bit_set` | Odin literal syntax: `{.Active, .Dirty}`, rune ranges as `{'b', 'd'}` |
 
 Corrupted values degrade safely: a slice or map with a garbage length or a nil data pointer shows its raw fields instead of freezing the panel or spilling Python errors into the console.
 

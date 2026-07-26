@@ -117,6 +117,28 @@ def is_map_type(t, internal_dict):
     return t.name.startswith("map[")
 
 
+def is_bit_set_type(t, internal_dict):
+    return t.name.startswith("bit_set[")
+
+
+def bit_set_summary(value, internal_dict):
+    if value.IsSynthetic():
+        value = value.GetNonSyntheticValue()
+
+    is_rune_range = "rune(" in value.type.name
+    members = []
+    for child in value.children:
+        name = child.name
+        if not name or child.type.name != "bool" or child.unsigned == 0:
+            continue
+        if name.isdigit():
+            codepoint = int(name)
+            members.append("'{}'".format(chr(codepoint)) if is_rune_range else name)
+        else:
+            members.append(".{}".format(name))
+    return "{{{}}}".format(", ".join(members))
+
+
 MAX_MAP_SCAN = 1 << 20
 TOMBSTONE_MASK = 1 << 63
 
@@ -317,4 +339,7 @@ def __lldb_init_module(debugger, unused):
     )
     debugger.HandleCommand(
         "type summary add --recognizer-function --python-function odin.map_summary odin.is_map_type"
+    )
+    debugger.HandleCommand(
+        "type summary add --recognizer-function --python-function odin.bit_set_summary odin.is_bit_set_type"
     )
