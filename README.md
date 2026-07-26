@@ -178,6 +178,42 @@ For detailed information about creating and using snippets, see [Zed's snippet d
 
 ## Debugging
 
-This extension supports debugging Odin applications using **LLDB**.
+Debugging uses **CodeLLDB**, which Zed's debugger installs automatically.
+
+### Starting a session
+
+Use the run icon in the gutter next to `main :: proc()` or any `@(test)` procedure and pick the debug variant, or open the debug panel and choose one of the detected `odin run` / `odin test` scenarios. The extension rebuilds the package with `odin build -debug -out:debug_build` (adding `-build-mode:test` for tests) and launches the result under the debugger — breakpoints and stepping work with no configuration.
+
+### Odin-aware variable display
+
+A bundled LLDB formatter is injected into every session, so the Variables panel shows Odin types natively:
+
+| Type | Displayed as |
+| --- | --- |
+| `string` | the text, truncated past 4096 characters; zero-value strings show `""` |
+| `cstring` | the text (via LLDB's C-string support) |
+| `[]T`, `[dynamic]T` | element list, chunked for very large slices |
+| `map[K]V` | `len = N, cap = M`, expanding to one `["key"] = value` row per entry |
+| `union`, `Maybe(T)` | all variants with the active one marked `*`; nil unions show `nil`; `#no_nil` unions supported |
+
+Corrupted values degrade safely: a slice or map with a garbage length or a nil data pointer shows its raw fields instead of freezing the panel or spilling Python errors into the console.
+
+### Custom debug scenarios
+
+For anything beyond run/test — attaching to a process, custom binaries, arguments — add a `.zed/debug.json` to your project:
+
+```json
+[
+  {
+    "adapter": "CodeLLDB",
+    "label": "Debug my_app",
+    "request": "launch",
+    "program": "$ZED_WORKTREE_ROOT/my_app",
+    "cwd": "$ZED_WORKTREE_ROOT"
+  }
+]
+```
+
+Build the `program` with `-debug` so it carries debug info. On Windows, CodeLLDB debugs Odin binaries via LLDB's PDB support; the experience is solid for breakpoints and stepping, though some type rendering can be more limited than on macOS/Linux.
 
 ---
