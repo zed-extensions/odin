@@ -13,8 +13,19 @@ use zed_extension_api::{
 };
 
 struct OdinExtension {
-    cached_binary_path: Option<String>,
+    cached_binary: Option<CachedBinary>,
 }
+
+struct CachedBinary {
+    release_tag: Option<String>,
+    path: String,
+}
+
+mod logic;
+use logic::{
+    release_tag_from_settings, resolve_ols_binary, strip_extension_settings, use_path_binary, Host,
+    Release, ReleaseAsset, ResolveInputs, LAST_RELEASE_CHECK_FILE,
+};
 
 const GITHUB_REPO: &str = "DanielGavin/ols";
 
@@ -52,26 +63,11 @@ impl OdinExtension {
         Some(binary_name)
     }
 
-    fn find_existing_ols_binary(&self) -> Option<String> {
-        let entries = fs::read_dir(".").ok()?;
-        let (platform, arch) = zed::current_platform();
-        let binary_name = self.ols_binary_name(platform, arch)?;
-        let executable_name = format!("{}{}", binary_name, Self::exe_suffix(platform));
-        let separator = Self::path_separator(platform);
-
-        for entry in entries.flatten() {
-            let file_name = entry.file_name();
-            let name_str = file_name.to_str()?;
-            if name_str.starts_with("ols-") && entry.path().is_dir() {
-                let binary_path = entry.path().join(&executable_name);
-                if binary_path.is_file() {
-                    let full_path = format!("{}{}{}", name_str, separator, executable_name);
-                    return Some(full_path);
-                }
-            }
-        }
-
-        None
+    fn unix_time_now() -> Option<u64> {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .map(|duration| duration.as_secs())
     }
 
     fn language_server_binary_path(
@@ -79,102 +75,134 @@ impl OdinExtension {
         language_server_id: &LanguageServerId,
         worktree: &Worktree,
     ) -> Result<String> {
-        let language_server = language_server_id.as_ref();
-        if let Some(path) = LspSettings::for_worktree(language_server, worktree)
-            .ok()
-            .and_then(|settings| settings.binary)
-            .and_then(|binary| binary.path)
+        let lsp_settings = LspSettings::for_worktree(language_server_id.as_ref(), worktree).ok();
+
+        if let Some(path) = lsp_settings
+            .as_ref()
+            .and_then(|settings| settings.binary.as_ref())
+            .and_then(|binary| binary.path.clone())
         {
             return Ok(path);
         }
 
-        if let Some(path) = worktree.which(language_server) {
-            return Ok(path);
-        }
+        let release_tag =
+            release_tag_from_settings(lsp_settings.as_ref().and_then(|s| s.settings.as_ref()));
 
-        if let Some(path) = &self.cached_binary_path {
-            if fs::metadata(path).is_ok_and(|stat| stat.is_file()) {
-                return Ok(path.to_string());
+        if use_path_binary(release_tag.as_deref()) {
+            if let Some(path) = worktree.which(language_server_id.as_ref()) {
+                return Ok(path);
             }
         }
-
-        zed::set_language_server_installation_status(
-            language_server_id,
-            &zed::LanguageServerInstallationStatus::CheckingForUpdate,
-        );
-
-        let release = match zed::latest_github_release(
-            GITHUB_REPO,
-            zed::GithubReleaseOptions {
-                require_assets: true,
-                pre_release: false,
-            },
-        ) {
-            Ok(release) => release,
-            Err(e) => {
-                if let Some(path) = self.find_existing_ols_binary() {
-                    self.cached_binary_path = Some(path.clone());
-                    return Ok(path);
-                }
-
-                return Err(format!(
-                    "Failed to download OLS language server: {}\n\n\
-                    To resolve this issue, you can connect to the internet and restart Zed or Manually install OLS.",
-                    e
-                ));
-            }
-        };
 
         let (platform, arch) = zed::current_platform();
-        let file_name = self
+        let asset_stem = self
             .ols_binary_name(platform, arch)
             .ok_or_else(|| format!("Unsupported platform {:?}", arch))?;
-        let asset_name = format!("{}.zip", file_name);
+        let executable_name = format!("{}{}", asset_stem, Self::exe_suffix(platform));
+        let check_record = fs::read_to_string(LAST_RELEASE_CHECK_FILE).ok();
 
-        let asset = release
-            .assets
-            .iter()
-            .find(|asset| asset.name == asset_name)
-            .ok_or_else(|| format!("no asset found matching {:?}", asset_name))?;
+        let cached_binary_path = self
+            .cached_binary
+            .as_ref()
+            .filter(|cached| cached.release_tag.as_deref() == release_tag.as_deref())
+            .map(|cached| cached.path.clone());
 
-        let version_dir = format!("ols-{}", release.version);
-        let separator = Self::path_separator(platform);
-        let binary_path = format!(
-            "{}{}{}{}",
-            version_dir,
-            separator,
-            file_name,
-            Self::exe_suffix(platform)
-        );
+        let inputs = ResolveInputs {
+            cached_binary_path: cached_binary_path.as_deref(),
+            release_tag: release_tag.as_deref(),
+            check_record: check_record.as_deref(),
+            now_secs: Self::unix_time_now(),
+            asset_stem: &asset_stem,
+            executable_name: &executable_name,
+            separator: Self::path_separator(platform),
+        };
 
-        if !fs::metadata(&binary_path).is_ok_and(|stat| stat.is_file()) {
-            zed::set_language_server_installation_status(
-                language_server_id,
-                &zed::LanguageServerInstallationStatus::Downloading,
-            );
+        let mut host = ZedHost { language_server_id };
+        let path = resolve_ols_binary(&mut host, &inputs)?;
+        self.cached_binary = Some(CachedBinary {
+            release_tag,
+            path: path.clone(),
+        });
+        Ok(path)
+    }
+}
 
-            zed::download_file(
-                &asset.download_url,
-                &version_dir,
-                zed::DownloadedFileType::Zip,
-            )
+struct ZedHost<'a> {
+    language_server_id: &'a LanguageServerId,
+}
+
+impl Host for ZedHost<'_> {
+    fn is_file(&self, path: &str) -> bool {
+        fs::metadata(path).is_ok_and(|stat| stat.is_file())
+    }
+
+    fn list_ols_dirs(&self) -> Vec<String> {
+        let Ok(entries) = fs::read_dir(".") else {
+            return Vec::new();
+        };
+        entries
+            .flatten()
+            .filter(|entry| entry.path().is_dir())
+            .filter_map(|entry| entry.file_name().to_str().map(str::to_string))
+            .filter(|name| name.starts_with("ols-"))
+            .collect()
+    }
+
+    fn fetch_release(&mut self, tag: Option<&str>) -> Result<Release, String> {
+        let release = match tag {
+            Some(tag) => zed::github_release_by_tag_name(GITHUB_REPO, tag),
+            None => zed::latest_github_release(
+                GITHUB_REPO,
+                zed::GithubReleaseOptions {
+                    require_assets: true,
+                    pre_release: false,
+                },
+            ),
+        }?;
+        Ok(Release {
+            version: release.version,
+            assets: release
+                .assets
+                .into_iter()
+                .map(|asset| ReleaseAsset {
+                    name: asset.name,
+                    download_url: asset.download_url,
+                })
+                .collect(),
+        })
+    }
+
+    fn download_and_install(
+        &mut self,
+        download_url: &str,
+        version_dir: &str,
+        binary_path: &str,
+    ) -> Result<(), String> {
+        zed::download_file(download_url, version_dir, zed::DownloadedFileType::Zip)
             .map_err(|e| format!("failed to download file: {e}"))?;
+        zed::make_file_executable(binary_path)
+    }
 
-            zed::make_file_executable(&binary_path)?;
+    fn remove_dir(&mut self, dir: &str) {
+        fs::remove_dir_all(dir).ok();
+    }
 
-            // Cleanup older versions
-            let entries =
-                fs::read_dir(".").map_err(|e| format!("failed to list working directory {e}"))?;
-            for entry in entries {
-                let entry = entry.map_err(|e| format!("failed to load directory entry {e}"))?;
-                if entry.file_name().to_str() != Some(&version_dir) {
-                    fs::remove_dir_all(entry.path()).ok();
-                }
-            }
-        }
+    fn write_check_record(&mut self, contents: &str) {
+        fs::write(LAST_RELEASE_CHECK_FILE, contents).ok();
+    }
 
-        self.cached_binary_path = Some(binary_path.clone());
-        Ok(binary_path)
+    fn set_status_checking(&mut self) {
+        zed::set_language_server_installation_status(
+            self.language_server_id,
+            &zed::LanguageServerInstallationStatus::CheckingForUpdate,
+        );
+    }
+
+    fn set_status_downloading(&mut self) {
+        zed::set_language_server_installation_status(
+            self.language_server_id,
+            &zed::LanguageServerInstallationStatus::Downloading,
+        );
     }
 }
 
@@ -222,7 +250,7 @@ impl OdinExtension {
 impl zed::Extension for OdinExtension {
     fn new() -> Self {
         Self {
-            cached_binary_path: None,
+            cached_binary: None,
         }
     }
 
@@ -231,11 +259,23 @@ impl zed::Extension for OdinExtension {
         language_server_id: &LanguageServerId,
         worktree: &Worktree,
     ) -> Result<zed::Command> {
+        let binary_settings = LspSettings::for_worktree(language_server_id.as_ref(), worktree)
+            .ok()
+            .and_then(|settings| settings.binary);
+        let args = binary_settings
+            .as_ref()
+            .and_then(|binary| binary.arguments.clone())
+            .unwrap_or_default();
+        let env = binary_settings
+            .and_then(|binary| binary.env)
+            .map(|env| env.into_iter().collect())
+            .unwrap_or_default();
+
         let ols_binary_path = self.language_server_binary_path(language_server_id, worktree)?;
         Ok(zed::Command {
             command: ols_binary_path,
-            args: Default::default(),
-            env: Default::default(),
+            args,
+            env,
         })
     }
 
@@ -255,10 +295,11 @@ impl zed::Extension for OdinExtension {
         language_server_id: &LanguageServerId,
         worktree: &Worktree,
     ) -> Result<Option<serde_json::Value>> {
-        let settings = LspSettings::for_worktree(language_server_id.as_ref(), worktree)
+        let mut settings = LspSettings::for_worktree(language_server_id.as_ref(), worktree)
             .ok()
             .and_then(|lsp_settings| lsp_settings.settings.clone())
             .unwrap_or_default();
+        strip_extension_settings(&mut settings);
         Ok(Some(settings))
     }
 
