@@ -57,6 +57,43 @@ pub fn strip_extension_settings(settings: &mut serde_json::Value) {
     }
 }
 
+pub fn merged_initialization_options(user: Option<serde_json::Value>) -> serde_json::Value {
+    let mut options = serde_json::json!({
+        "enable_hover": true,
+        "enable_document_symbols": true,
+        "enable_snippets": true,
+        "enable_references": true,
+        "enable_inlay_hints_params": true,
+        "enable_inlay_hints_default_params": true,
+    });
+    match user {
+        Some(serde_json::Value::Object(user)) => {
+            let defaults = options.as_object_mut().unwrap();
+            for (key, value) in user {
+                defaults.insert(key, value);
+            }
+            options
+        }
+        Some(other) => other,
+        None => options,
+    }
+}
+
+pub fn debug_output_name(build_target: &str, exe_suffix: &str) -> String {
+    let base_name = build_target
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or("")
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect::<String>();
+    if base_name.is_empty() || base_name.chars().all(|c| c == '_') {
+        format!("debug_build{exe_suffix}")
+    } else {
+        format!("debug_build-{base_name}{exe_suffix}")
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Release {
     pub version: String,

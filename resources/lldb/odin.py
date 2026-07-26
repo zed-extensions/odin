@@ -316,6 +316,25 @@ def union_summary(value, internal_dict):
     return f"{variant}"
 
 
+def is_maybe_type(t, internal_dict):
+    return t.name.startswith("runtime::Maybe(") or t.name.startswith("Maybe(")
+
+
+def maybe_summary(value, internal_dict):
+    if value.IsSynthetic():
+        value = value.GetNonSyntheticValue()
+
+    tag = value.GetChildAtIndex(0)
+    if not tag.IsValid() or tag.name != "tag" or tag.unsigned == 0:
+        return "nil"
+
+    variant = value.GetChildMemberWithName(f"v{tag.unsigned}")
+    if not variant.IsValid():
+        return "nil"
+
+    return variant.GetSummary() or variant.GetValue() or f"{variant}"
+
+
 def __lldb_init_module(debugger, unused):
     debugger.HandleCommand(
         "type summary add --recognizer-function --python-function odin.union_summary odin.is_type_union"
@@ -342,4 +361,7 @@ def __lldb_init_module(debugger, unused):
     )
     debugger.HandleCommand(
         "type summary add --recognizer-function --python-function odin.bit_set_summary odin.is_bit_set_type"
+    )
+    debugger.HandleCommand(
+        "type summary add --recognizer-function --python-function odin.maybe_summary odin.is_maybe_type"
     )

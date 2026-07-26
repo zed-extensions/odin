@@ -143,6 +143,57 @@ fn strip_extension_settings_ignores_non_objects() {
     }
 }
 
+#[test]
+fn initialization_defaults_never_override_user_options() {
+    let defaults = merged_initialization_options(None);
+    assert_eq!(
+        defaults,
+        serde_json::json!({
+            "enable_hover": true,
+            "enable_document_symbols": true,
+            "enable_snippets": true,
+            "enable_references": true,
+            "enable_inlay_hints_params": true,
+            "enable_inlay_hints_default_params": true,
+        }),
+        "changing the default set must be a deliberate, tested decision"
+    );
+
+    let user = serde_json::json!({
+        "enable_hover": false,
+        "collections": [{"name": "shared", "path": "/x"}],
+    });
+    let merged = merged_initialization_options(Some(user));
+    assert_eq!(merged["enable_hover"], false);
+    assert_eq!(merged["enable_snippets"], true);
+    assert_eq!(merged["collections"][0]["name"], "shared");
+
+    let passthrough = merged_initialization_options(Some(serde_json::json!(null)));
+    assert_eq!(passthrough, serde_json::Value::Null);
+}
+
+#[test]
+fn debug_output_names_are_per_target() {
+    assert_eq!(
+        debug_output_name("/Users/mo/proj/game", ""),
+        "debug_build-game"
+    );
+    assert_eq!(
+        debug_output_name("C:\\proj\\game", ".exe"),
+        "debug_build-game.exe"
+    );
+    assert_eq!(
+        debug_output_name("/proj/src/main.odin", ""),
+        "debug_build-main_odin"
+    );
+    assert_ne!(
+        debug_output_name("/proj/client", ""),
+        debug_output_name("/proj/server", "")
+    );
+    assert_eq!(debug_output_name("", ""), "debug_build");
+    assert_eq!(debug_output_name("///", ".exe"), "debug_build.exe");
+}
+
 #[derive(Default)]
 struct FakeHost {
     files: BTreeSet<String>,

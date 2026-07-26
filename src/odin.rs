@@ -23,8 +23,9 @@ struct CachedBinary {
 
 mod logic;
 use logic::{
-    release_tag_from_settings, resolve_ols_binary, strip_extension_settings, use_path_binary, Host,
-    Release, ReleaseAsset, ResolveInputs, LAST_RELEASE_CHECK_FILE,
+    debug_output_name, merged_initialization_options, release_tag_from_settings,
+    resolve_ols_binary, strip_extension_settings, use_path_binary, Host, Release, ReleaseAsset,
+    ResolveInputs, LAST_RELEASE_CHECK_FILE,
 };
 
 const GITHUB_REPO: &str = "DanielGavin/ols";
@@ -284,10 +285,10 @@ impl zed::Extension for OdinExtension {
         language_server_id: &LanguageServerId,
         worktree: &Worktree,
     ) -> Result<Option<serde_json::Value>> {
-        let settings = LspSettings::for_worktree(language_server_id.as_ref(), worktree)
+        let user_options = LspSettings::for_worktree(language_server_id.as_ref(), worktree)
             .ok()
             .and_then(|lsp_settings| lsp_settings.initialization_options.clone());
-        Ok(settings)
+        Ok(Some(merged_initialization_options(user_options)))
     }
 
     fn language_server_workspace_configuration(
@@ -487,7 +488,8 @@ impl zed::Extension for OdinExtension {
 
         // Add -out flag to control output name
         let (platform, _) = zed::current_platform();
-        let out_name = format!("debug_build{}", Self::exe_suffix(platform));
+        let build_target = build_task.args.get(1).map(String::as_str).unwrap_or("");
+        let out_name = debug_output_name(build_target, Self::exe_suffix(platform));
         build_args.push(format!("-out:{}", out_name));
 
         // Add -debug flag if not present
