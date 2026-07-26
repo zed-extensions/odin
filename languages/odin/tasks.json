@@ -28,5 +28,20 @@
     "command": "odin",
     "args": ["test", "$ZED_DIRNAME", "-define:ODIN_TEST_CLIPBOARD=false"],
     "tags": ["odin-test-all"]
+  },
+  {
+    "label": "check: package '$ZED_RELATIVE_DIR'",
+    "command": "odin",
+    "args": ["check", "$ZED_DIRNAME"]
+  },
+  {
+    "label": "check: package '$ZED_RELATIVE_DIR' (vet)",
+    "command": "odin",
+    "args": ["check", "$ZED_DIRNAME", "-vet"]
+  },
+  {
+    "label": "build: package '$ZED_RELATIVE_DIR' (debug)",
+    "command": "odin",
+    "args": ["build", "$ZED_DIRNAME", "-debug"]
   }
 ]
