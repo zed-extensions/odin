@@ -63,6 +63,25 @@ When GitHub is unreachable, the latest flow falls back to the newest intact down
 
 ## Configuration
 
+### Out-of-the-Box Defaults
+
+OLS ships with every feature disabled, so the extension enables a conservative set by default:
+
+```jsonc
+{
+  "enable_hover": true,
+  "enable_document_symbols": true,
+  "enable_snippets": true,
+  "enable_references": true,
+  "enable_inlay_hints_params": true,
+  "enable_inlay_hints_default_params": true
+}
+```
+
+Inlay hints only appear if you also enable them in Zed. Formatting is deliberately **not** enabled by default — Zed formats on save out of the box, and silently reformatting existing codebases would be unwelcome; see the Formatting section below to opt in.
+
+Your own settings always win: any key you set in `initialization_options` (including setting one of the above to `false`) overrides the default, and a project `ols.json` overrides both.
+
 #### Configure via Zed Settings (Recommended)
 
 Add OLS configuration directly in your Zed `settings.json`. This approach works project-wide and doesn't require additional files:
@@ -100,7 +119,7 @@ Alternatively, create an `ols.json` file at the root of your workspace.For more 
 
 ## Formatting with odinfmt
 
-By default, formatting goes through OLS (`enable_format`, on by default). This works for most setups, but some issues — most commonly reported by **Vim mode** users (formatting glitches that persist regardless of OLS settings) — are only fixed by bypassing the language server and running [odinfmt](https://github.com/DanielGavin/ols) as an external formatter:
+The simplest way to get formatting is through OLS: set `"enable_format": true` in your `initialization_options` (it is off by default so that format-on-save never surprises an existing codebase). This works for most setups, but some issues — most commonly reported by **Vim mode** users (formatting glitches that persist regardless of OLS settings) — are only fixed by bypassing the language server and running [odinfmt](https://github.com/DanielGavin/ols) as an external formatter:
 
 ```jsonc
 {
@@ -194,7 +213,8 @@ A bundled LLDB formatter is injected into every session, so the Variables panel 
 | `cstring` | the text (via LLDB's C-string support) |
 | `[]T`, `[dynamic]T` | element list, chunked for very large slices |
 | `map[K]V` | `len = N, cap = M`, expanding to one `["key"] = value` row per entry |
-| `union`, `Maybe(T)` | all variants with the active one marked `*`; nil unions show `nil`; `#no_nil` unions supported |
+| `union` | all variants with the active one marked `*`; nil unions show `nil`; `#no_nil` unions supported |
+| `Maybe(T)` | the wrapped value directly, or `nil` |
 | `bit_set` | Odin literal syntax: `{.Active, .Dirty}`, rune ranges as `{'b', 'd'}` |
 
 Corrupted values degrade safely: a slice or map with a garbage length or a nil data pointer shows its raw fields instead of freezing the panel or spilling Python errors into the console.
