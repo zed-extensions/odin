@@ -488,8 +488,7 @@ impl zed::Extension for OdinExtension {
 
         // Add -out flag to control output name
         let (platform, _) = zed::current_platform();
-        let build_target = build_task.args.get(1).map(String::as_str).unwrap_or("");
-        let out_name = debug_output_name(build_target, Self::exe_suffix(platform));
+        let out_name = debug_output_name(&resolved_label, Self::exe_suffix(platform));
         build_args.push(format!("-out:{}", out_name));
 
         // Add -debug flag if not present
