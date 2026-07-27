@@ -79,18 +79,28 @@ pub fn merged_initialization_options(user: Option<serde_json::Value>) -> serde_j
     }
 }
 
-pub fn debug_output_name(build_target: &str, exe_suffix: &str) -> String {
-    let base_name = build_target
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or("")
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '_' })
-        .collect::<String>();
-    if base_name.is_empty() || base_name.chars().all(|c| c == '_') {
+pub fn debug_output_name(resolved_label: &str, exe_suffix: &str) -> String {
+    let target = resolved_label
+        .strip_prefix("run: ")
+        .or_else(|| resolved_label.strip_prefix("test: "))
+        .unwrap_or(resolved_label);
+
+    let mut sanitized = String::with_capacity(target.len());
+    let mut last_was_underscore = false;
+    for c in target.chars() {
+        let c = if c.is_alphanumeric() { c } else { '_' };
+        if c == '_' && last_was_underscore {
+            continue;
+        }
+        last_was_underscore = c == '_';
+        sanitized.push(c);
+    }
+    let trimmed = sanitized.trim_matches('_');
+
+    if trimmed.is_empty() {
         format!("debug_build{exe_suffix}")
     } else {
-        format!("debug_build-{base_name}{exe_suffix}")
+        format!("debug_build-{trimmed}{exe_suffix}")
     }
 }
 

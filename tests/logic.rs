@@ -173,25 +173,45 @@ fn initialization_defaults_never_override_user_options() {
 }
 
 #[test]
-fn debug_output_names_are_per_target() {
+fn debug_output_names_are_derived_from_the_resolved_label() {
     assert_eq!(
-        debug_output_name("/Users/mo/proj/game", ""),
-        "debug_build-game"
-    );
-    assert_eq!(
-        debug_output_name("C:\\proj\\game", ".exe"),
-        "debug_build-game.exe"
-    );
-    assert_eq!(
-        debug_output_name("/proj/src/main.odin", ""),
+        debug_output_name("run: 'main.odin'", ""),
         "debug_build-main_odin"
     );
+    assert_eq!(
+        debug_output_name("run: package 'src'", ""),
+        "debug_build-package_src"
+    );
+    assert_eq!(
+        debug_output_name("test: 'my_test'", ""),
+        "debug_build-my_test"
+    );
+    assert_eq!(debug_output_name("test: 'src'", ""), "debug_build-src");
+    assert_eq!(
+        debug_output_name("run: 'main.odin'", ".exe"),
+        "debug_build-main_odin.exe"
+    );
+
+    // A run and a test targeting the same relative dir must not collide.
     assert_ne!(
-        debug_output_name("/proj/client", ""),
-        debug_output_name("/proj/server", "")
+        debug_output_name("run: package 'src'", ""),
+        debug_output_name("test: 'src'", "")
+    );
+    // Different targets must not collide.
+    assert_ne!(
+        debug_output_name("run: 'client.odin'", ""),
+        debug_output_name("run: 'server.odin'", "")
+    );
+
+    // Defensive fallbacks: no "run: "/"test: " prefix, empty, or a label
+    // that sanitizes to nothing must never produce a broken/empty name.
+    assert_eq!(
+        debug_output_name("package 'src'", ""),
+        "debug_build-package_src"
     );
     assert_eq!(debug_output_name("", ""), "debug_build");
-    assert_eq!(debug_output_name("///", ".exe"), "debug_build.exe");
+    assert_eq!(debug_output_name("run: ''", ""), "debug_build");
+    assert_eq!(debug_output_name("test: ///", ".exe"), "debug_build.exe");
 }
 
 #[derive(Default)]
