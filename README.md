@@ -115,6 +115,25 @@ Add OLS configuration directly in your Zed `settings.json`. This approach works 
 
 Alternatively, create an `ols.json` file at the root of your workspace.For more configuration options, see the [OLS documentation](https://github.com/DanielGavin/ols#configuration).
 
+### Collections Need to Be Passed to Tasks Too
+
+`collections` (whether set via `initialization_options` or `ols.json`) only teach OLS how to resolve imports like `import "project:foo"` for indexing, hover, and go-to-definition. The `odin` compiler itself has no config file; it only learns about a collection from a `-collection:name=path` flag on the command line. Since this extension's built-in `run:`/`test:`/`build:`/`check:` tasks are static and don't know about your `ols.json`, running one on code that uses a custom collection fails with `Unknown library collection: '<name>'`, even though OLS resolved the same import correctly.
+
+To fix this, add a `.zed/tasks.json` to your project overriding the tasks you use with the matching `-collection:` flag, e.g.:
+
+```json
+[
+  {
+    "label": "run: package '$ZED_RELATIVE_DIR'",
+    "command": "odin",
+    "args": ["run", "$ZED_DIRNAME", "-collection:project=."],
+    "tags": ["odin-main"]
+  }
+]
+```
+
+A worktree-local task with the same label overrides the one this extension provides, so you only need to redefine the ones you actually run.
+
 ---
 
 ## Formatting with odinfmt
