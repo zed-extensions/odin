@@ -214,6 +214,22 @@ For detailed information about creating and using snippets, see [Zed's snippet d
 
 ---
 
+## Embedded Language Highlighting
+
+Odin has no native syntax for embedded shaders, markup, queries, or config, so raw strings holding this content render as plain text by default. Add a `// <lang>` comment directly above the raw string to highlight its contents as that language:
+
+```odin
+// glsl
+vert_shader := `void main() { gl_Position = vec4(0); }`
+
+// hlsl
+pixel_shader := `float4 main() : SV_Target { return float4(1, 0, 0, 1); }`
+```
+
+Supported languages: `glsl`, `hlsl`, `wgsl`, `json`, `sql`, `html`, `xml`. The comment must sit immediately above a `:=`, `=`, or `::` raw (backtick) string assignment, and matching is case-insensitive. This only affects syntax highlighting; Zed still needs the corresponding language extension installed (e.g. the GLSL or HLSL extension) to render it.
+
+---
+
 ## Debugging
 
 Debugging uses **CodeLLDB**, which Zed's debugger installs automatically.
