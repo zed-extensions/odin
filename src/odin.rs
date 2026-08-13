@@ -1,4 +1,3 @@
-use base64::{engine::general_purpose, Engine as _};
 use std::fs;
 use zed::{
     BuildTaskDefinition, BuildTaskDefinitionTemplatePayload, BuildTaskTemplate, DebugRequest,
@@ -14,6 +13,7 @@ use zed_extension_api::{
 
 struct OdinExtension {
     cached_binary: Option<CachedBinary>,
+    lldb_script: Option<String>,
 }
 
 struct CachedBinary {
@@ -23,9 +23,10 @@ struct CachedBinary {
 
 mod logic;
 use logic::{
-    debug_output_name, merged_initialization_options, release_tag_from_settings,
-    resolve_ols_binary, strip_extension_settings, use_path_binary, Host, Release, ReleaseAsset,
-    ResolveInputs, LAST_RELEASE_CHECK_FILE,
+    debug_output_name, lldb_prerun_command, lldb_script_from_settings,
+    merged_initialization_options, release_tag_from_settings, resolve_ols_binary,
+    strip_extension_settings, use_path_binary, Host, Release, ReleaseAsset, ResolveInputs,
+    LAST_RELEASE_CHECK_FILE,
 };
 
 const GITHUB_REPO: &str = "DanielGavin/ols";
@@ -45,6 +46,15 @@ impl OdinExtension {
             Os::Windows => "\\",
             _ => "/",
         }
+    }
+
+    /// Loads the LLDB script for a debug session: the script set via `lldb_script`
+    /// in `lsp.ols.settings` (cached from the last time the language server settings
+    /// were read for a worktree), or the bundled `odin.py` if unset.
+    fn resolve_lldb_script(&self) -> String {
+        self.lldb_script
+            .clone()
+            .unwrap_or_else(|| ODIN_SCRIPT.to_string())
     }
 
     fn ols_binary_name(&self, platform: Os, arch: Architecture) -> Option<String> {
@@ -77,6 +87,12 @@ impl OdinExtension {
         worktree: &Worktree,
     ) -> Result<String> {
         let lsp_settings = LspSettings::for_worktree(language_server_id.as_ref(), worktree).ok();
+
+        if let Some(raw_path) =
+            lldb_script_from_settings(lsp_settings.as_ref().and_then(|s| s.settings.as_ref()))
+        {
+            self.lldb_script = worktree.read_text_file(&raw_path).ok();
+        }
 
         if let Some(path) = lsp_settings
             .as_ref()
@@ -252,6 +268,7 @@ impl zed::Extension for OdinExtension {
     fn new() -> Self {
         Self {
             cached_binary: None,
+            lldb_script: None,
         }
     }
 
@@ -515,11 +532,7 @@ impl zed::Extension for OdinExtension {
 
         let mut config_map = serde_json::Map::new();
 
-        let encoded_script = general_purpose::STANDARD.encode(ODIN_SCRIPT);
-        let exec_command = format!(
-            "script import base64, types; odin = types.SimpleNamespace(); exec(base64.b64decode('{}').decode(), odin.__dict__); odin.__dict__['__lldb_init_module'](lldb.debugger, {{}})",
-            encoded_script
-        );
+        let exec_command = lldb_prerun_command(&self.resolve_lldb_script());
 
         config_map.insert(
             "preRunCommands".to_string(),
@@ -592,6 +605,31 @@ impl zed::Extension for OdinExtension {
         };
 
         Ok(DebugRequest::Launch(request))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn extension(lldb_script: Option<&str>) -> OdinExtension {
+        OdinExtension {
+            cached_binary: None,
+            lldb_script: lldb_script.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn resolve_lldb_script_uses_the_bundled_script_by_default() {
+        assert_eq!(extension(None).resolve_lldb_script(), ODIN_SCRIPT);
+    }
+
+    #[test]
+    fn resolve_lldb_script_uses_the_cached_custom_script() {
+        assert_eq!(
+            extension(Some("# custom marker\n")).resolve_lldb_script(),
+            "# custom marker\n"
+        );
     }
 }
 

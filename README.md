@@ -254,6 +254,26 @@ A bundled LLDB formatter is injected into every session, so the Variables panel 
 
 Corrupted values degrade safely: a slice or map with a garbage length or a nil data pointer shows its raw fields instead of freezing the panel or spilling Python errors into the console.
 
+### Using your own LLDB script
+
+To load your own script instead of the bundled formatter, set `lldb_script` in your `lsp.ols.settings` to a path relative to your project root:
+
+```json
+{
+  "lsp": {
+    "ols": {
+      "settings": {
+        "lldb_script": ".zed/my_odin.py"
+      }
+    }
+  }
+}
+```
+
+The script must define `__lldb_init_module(debugger, internal_dict)`, same as `odin.py`. The path is read from within the project (same access extensions have to any other project file), so it must live inside the project; if it can't be read, the bundled formatter is used instead.
+
+This setting is read as part of `lsp.ols.settings`, so it's picked up when the OLS language server starts, not on every debug session. After adding or changing it, restart the language server (or restart Zed) for it to take effect.
+
 ### Custom debug scenarios
 
 For anything beyond run/test — attaching to a process, custom binaries, arguments — add a `.zed/debug.json` to your project:

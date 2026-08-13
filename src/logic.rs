@@ -1,6 +1,12 @@
+use base64::{engine::general_purpose, Engine as _};
+
 pub const RELEASE_CHECK_INTERVAL_SECS: u64 = 24 * 60 * 60;
 pub const LAST_RELEASE_CHECK_FILE: &str = ".ols-last-release-check";
 pub const NIGHTLY_TAG: &str = "nightly";
+
+/// Key under `lsp.ols.settings` a user can set to point at a custom LLDB script
+/// that replaces the bundled `odin.py` formatter for every debug session.
+pub const LLDB_SCRIPT_SETTING_KEY: &str = "lldb_script";
 
 pub fn format_check_record(checked_at_secs: u64, version: &str) -> String {
     format!("{checked_at_secs} {version}")
@@ -20,6 +26,25 @@ pub fn release_tag_from_settings(settings: Option<&serde_json::Value>) -> Option
         .map(str::trim)
         .filter(|tag| !tag.is_empty())
         .map(str::to_string)
+}
+
+pub fn lldb_script_from_settings(settings: Option<&serde_json::Value>) -> Option<String> {
+    settings?
+        .get(LLDB_SCRIPT_SETTING_KEY)?
+        .as_str()
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+        .map(str::to_string)
+}
+
+/// Builds the `preRunCommands` entry that base64-embeds `script` and runs its
+/// `__lldb_init_module` inside the debug session, working around lldb-dap's
+/// sandboxed `command script import`.
+pub fn lldb_prerun_command(script: &str) -> String {
+    let encoded = general_purpose::STANDARD.encode(script);
+    format!(
+        "script import base64, types; odin = types.SimpleNamespace(); exec(base64.b64decode('{encoded}').decode(), odin.__dict__); odin.__dict__['__lldb_init_module'](lldb.debugger, {{}})"
+    )
 }
 
 pub fn ols_version_dir(version: &str) -> String {
@@ -54,6 +79,7 @@ pub fn use_path_binary(release_tag: Option<&str>) -> bool {
 pub fn strip_extension_settings(settings: &mut serde_json::Value) {
     if let Some(settings) = settings.as_object_mut() {
         settings.remove("release_tag");
+        settings.remove(LLDB_SCRIPT_SETTING_KEY);
     }
 }
 

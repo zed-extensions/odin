@@ -2,6 +2,7 @@
 #[path = "../src/logic.rs"]
 mod logic;
 
+use base64::{engine::general_purpose, Engine as _};
 use logic::*;
 use std::collections::BTreeSet;
 
@@ -121,6 +122,7 @@ fn path_binary_is_outranked_by_explicit_pin() {
 fn strip_extension_settings_removes_only_release_tag() {
     let mut settings = serde_json::json!({
         "release_tag": "nightly",
+        "lldb_script": ".zed/my_odin.py",
         "odin_command": "/usr/local/bin/odin",
     });
     strip_extension_settings(&mut settings);
@@ -212,6 +214,43 @@ fn debug_output_names_are_derived_from_the_resolved_label() {
     assert_eq!(debug_output_name("", ""), "debug_build");
     assert_eq!(debug_output_name("run: ''", ""), "debug_build");
     assert_eq!(debug_output_name("test: ///", ".exe"), "debug_build.exe");
+}
+
+#[test]
+fn lldb_script_from_settings_reads_and_trims_the_setting() {
+    assert_eq!(lldb_script_from_settings(None), None);
+    assert_eq!(
+        lldb_script_from_settings(Some(&serde_json::json!({ "odin_command": "odin" }))),
+        None
+    );
+    assert_eq!(
+        lldb_script_from_settings(Some(&serde_json::json!({ "lldb_script": "   " }))),
+        None,
+        "blank paths are treated as unset"
+    );
+    assert_eq!(
+        lldb_script_from_settings(Some(
+            &serde_json::json!({ "lldb_script": " .zed/my_odin.py " })
+        )),
+        Some(".zed/my_odin.py".to_string())
+    );
+}
+
+#[test]
+fn lldb_prerun_command_round_trips_the_script_through_base64() {
+    let script = "# marker\ndef __lldb_init_module(debugger, internal_dict):\n    pass\n";
+    let command = lldb_prerun_command(script);
+
+    assert!(command.starts_with("script import base64, types;"));
+    assert!(command.ends_with("odin.__dict__['__lldb_init_module'](lldb.debugger, {})"));
+
+    let marker = "base64.b64decode('";
+    let start = command.find(marker).unwrap() + marker.len();
+    let end = start + command[start..].find('\'').unwrap();
+    let decoded = general_purpose::STANDARD
+        .decode(&command[start..end])
+        .unwrap();
+    assert_eq!(String::from_utf8(decoded).unwrap(), script);
 }
 
 #[derive(Default)]
